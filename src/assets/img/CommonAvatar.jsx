@@ -1,4 +1,3 @@
-// CommonAvatar.jsx (no side arm lines)
 import * as React from "react";
 
 export default function CommonAvatar({
@@ -59,21 +58,20 @@ export default function CommonAvatar({
         .pupil  { fill:#111; transform-origin:center; }
         .ear    { fill:url(#skinGrad); stroke:${line}; stroke-width:1.6; }
 
+        /* Bigger mouth motion */
         .mouth  { fill:#111; transform-origin:110px 150px; transform: scaleY(var(--mouthScale)); }
 
         .shawl  { fill:url(#clothGrad); stroke:#bdbdbd; }
 
         #head { transform-origin:110px 120px; transform: rotate(var(--headTilt)); }
-
-        /* Happy brows */
         #brows { transform: translateY(var(--browY)); }
-
         #eyes { transform: translate(var(--eyeX), var(--eyeY)); }
 
+        /* Blink needs the class on this SVG (parent sets className="blink") */
         .blink .pupil { animation: blink 4s linear infinite; }
         @keyframes blink { 0%,96%,100% { transform: scaleY(1); } 97%,99% { transform: scaleY(0.05); } }
 
-        #leftArm, #rightArm { transform-origin:center; } /* safe */
+        #leftArm, #rightArm { transform-origin:center; }
       `}</style>
 
       {/* Card */}
@@ -83,7 +81,6 @@ export default function CommonAvatar({
       <g id="head">
         <ellipse className="ear" cx="36" cy="120" rx="12" ry="18" />
         <ellipse className="ear" cx="184" cy="120" rx="12" ry="18" />
-
         <circle cx="110" cy="120" r="84" fill="url(#skinGrad)" className="o" />
 
         {/* Happy Brows */}
@@ -101,8 +98,8 @@ export default function CommonAvatar({
         {/* Nose */}
         <path d="M110 112 q5 12 0 22" className="o thin" fill="none" />
 
-        {/* Mouth */}
-        <rect x="88" y="146" width="44" height="14" rx="7" className="mouth" />
+        {/* Mouth (kept rounded rect for scale animation) */}
+        <rect x="86" y="146" width="48" height="16" rx="8" className="mouth" />
       </g>
 
       {/* ===== BODY ===== */}
@@ -111,14 +108,11 @@ export default function CommonAvatar({
         <circle cx="110" cy="200" r="12" fill="#ededed" stroke="#cfcfcf" />
       </g>
 
-      {/* ===== ARMS (Removed curved lines; only small hands remain optional) ===== */}
+      {/* ===== ARMS (side lines removed, small hands only) ===== */}
       <g id="leftArm">
-        {/* removed: <path d="M72 172 q-12 18 -10 36" /> */}
         <ellipse cx="60" cy="208" rx="6.2" ry="7.2" className="o" fill="url(#skinGrad)" />
       </g>
-
       <g id="rightArm">
-        {/* removed: <path d="M148 172 q12 18 10 36" /> */}
         <ellipse cx="160" cy="208" rx="6.2" ry="7.2" className="o" fill="url(#skinGrad)" />
       </g>
     </svg>
