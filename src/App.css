@@ -36,3 +36,18 @@
     transform: rotate(360deg);
   }
 }
+
+/* Mouth should scale with the CSS var */
+.mouth {
+  transform: scaleY(var(--mouthScale));
+  transform-origin: 50% 50%;
+}
+
+/* Blink helper if your avatar uses .eye */
+.blink .eye {
+  animation: blinkAnim 4s infinite;
+}
+@keyframes blinkAnim {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
