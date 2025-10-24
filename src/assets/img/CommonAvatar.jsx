@@ -9,7 +9,7 @@ export default function CommonAvatar({
   line = "#2b2b2b",
   glasses = "#6d6d6d",
   showGlasses = false,
-  mouth,
+  mouth,          // 0.2–1.0 (animated from parent)
   headTilt, eyeX, eyeY, browY, leftArmRot, rightArmRot,
   ...props
 }) {
@@ -58,8 +58,8 @@ export default function CommonAvatar({
         .pupil  { fill:#111; transform-origin:center; }
         .ear    { fill:url(#skinGrad); stroke:${line}; stroke-width:1.6; }
 
-        /* Bigger mouth motion */
-        .mouth  { fill:#111; transform-origin:110px 150px; transform: scaleY(var(--mouthScale)); }
+        /* Larger mouth motion controlled via CSS var */
+        .mouth  { fill:#111; transform-origin:110px 150px; transform: scaleY(var(--mouthScale)); transition: transform 80ms linear; }
 
         .shawl  { fill:url(#clothGrad); stroke:#bdbdbd; }
 
@@ -67,7 +67,7 @@ export default function CommonAvatar({
         #brows { transform: translateY(var(--browY)); }
         #eyes { transform: translate(var(--eyeX), var(--eyeY)); }
 
-        /* Blink needs the class on this SVG (parent sets className="blink") */
+        /* Blink when parent supplies className="blink" */
         .blink .pupil { animation: blink 4s linear infinite; }
         @keyframes blink { 0%,96%,100% { transform: scaleY(1); } 97%,99% { transform: scaleY(0.05); } }
 
@@ -83,7 +83,7 @@ export default function CommonAvatar({
         <ellipse className="ear" cx="184" cy="120" rx="12" ry="18" />
         <circle cx="110" cy="120" r="84" fill="url(#skinGrad)" className="o" />
 
-        {/* Happy Brows */}
+        {/* Brows */}
         <g id="brows" stroke={line} fill="none" strokeWidth="2">
           <path d="M64 96 q12 -6 24 2" />
           <path d="M132 98 q12 -8 24 2" />
@@ -98,7 +98,7 @@ export default function CommonAvatar({
         {/* Nose */}
         <path d="M110 112 q5 12 0 22" className="o thin" fill="none" />
 
-        {/* Mouth (kept rounded rect for scale animation) */}
+        {/* Mouth */}
         <rect x="86" y="146" width="48" height="16" rx="8" className="mouth" />
       </g>
 
@@ -108,13 +108,22 @@ export default function CommonAvatar({
         <circle cx="110" cy="200" r="12" fill="#ededed" stroke="#cfcfcf" />
       </g>
 
-      {/* ===== ARMS (side lines removed, small hands only) ===== */}
+      {/* ===== ARMS ===== */}
       <g id="leftArm">
         <ellipse cx="60" cy="208" rx="6.2" ry="7.2" className="o" fill="url(#skinGrad)" />
       </g>
       <g id="rightArm">
         <ellipse cx="160" cy="208" rx="6.2" ry="7.2" className="o" fill="url(#skinGrad)" />
       </g>
+
+      {/* Optional glasses */}
+      {showGlasses && (
+        <g stroke={glasses} fill="none" strokeWidth="2">
+          <circle cx="78" cy="105" r="10" />
+          <circle cx="142" cy="105" r="10" />
+          <line x1="88" y1="105" x2="132" y2="105" />
+        </g>
+      )}
     </svg>
   );
 }

@@ -1,9 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
-import 'bootstrap/dist/css/bootstrap.min.css'; // Include Bootstrap CSS
-import 'bootstrap-icons/font/bootstrap-icons.css'; // Include Bootstrap Icons
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  memo,
+} from "react";
+import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap-icons/font/bootstrap-icons.css";
 import CommonAvatar from "./assets/img/CommonAvatar.jsx";
 
-/** ====== API CONFIG ====== */
+/** ===== App Brand ===== */
+const APP_NAME = "Raahi Studio";
+
+/** ===== API ===== */
 const BASE_URL = "http://localhost:8080/api";
 
 /* -------------------- Helpers -------------------- */
@@ -25,6 +35,11 @@ async function readChatReply(res) {
 const norm = (s) => (s || "").toLowerCase();
 const uid = () =>
   "web-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+const catCode = (c) => (typeof c === "string" ? c : c?.code || c?.name || c);
+const catLabel = (c, i) =>
+  typeof c === "string"
+    ? c
+    : c?.displayName || c?.name || c?.code || `Category ${i + 1}`;
 
 /* ---- Voice helpers ---- */
 function normalizeGender(g) {
@@ -33,22 +48,13 @@ function normalizeGender(g) {
   if (s === "female" || s === "f") return "female";
   return s;
 }
-function isRishi(v) {
-  const n = norm(v.name),
-    u = norm(v.voiceURI || "");
-  return n.includes("rishi") || u.includes("rishi");
-}
-function isLekha(v) {
-  const n = norm(v.name),
-    u = norm(v.voiceURI || "");
-  return n.includes("lekha") || u.includes("lekha");
-}
-function isHindi(v) {
-  const n = norm(v.name),
-    l = norm(v.lang || ""),
-    u = norm(v.voiceURI || "");
-  return l.startsWith("hi") || n.includes("hindi") || u.includes("hindi");
-}
+const isRishi = (v) => norm(v.name).includes("rishi") || norm(v.voiceURI || "").includes("rishi");
+const isLekha = (v) => norm(v.name).includes("lekha") || norm(v.voiceURI || "").includes("lekha");
+const isHindi = (v) =>
+  norm(v.lang || "").startsWith("hi") ||
+  norm(v.name).includes("hindi") ||
+  norm(v.voiceURI || "").includes("hindi");
+
 function pickVoiceByGender(voices, genderRaw) {
   const gender = normalizeGender(genderRaw);
   if (gender === "female") {
@@ -73,36 +79,42 @@ function pickVoiceByGender(voices, genderRaw) {
 }
 
 /* -------------------- UI atoms -------------------- */
-function Chip({ children }) {
-  return (
-    <span className="badge bg-light text-dark border border-secondary-subtle px-2 py-1 fs-6 fw-semibold rounded-pill">
-      {children}
-    </span>
-  );
-}
 function Button({ children, kind = "solid", ...p }) {
-  const variant = kind === "solid" ? "primary" : kind === "gray" ? "secondary" : "outline-primary";
+  const variant =
+    kind === "solid"
+      ? "primary"
+      : kind === "gray"
+      ? "secondary"
+      : "outline-primary";
   return (
-    <button {...p} className={`btn btn-${variant} ${p.className || ''}`}>
+    <button {...p} className={`btn btn-${variant} ${p.className || ""}`}>
       {children}
     </button>
   );
 }
-function Card({ children, style }) {
+function Card({ children, style, className = "", ...p }) {
   return (
-    <div className="card shadow-sm border-0" style={style}>
+    <div
+      {...p}
+      className={`card border-0 ${className}`}
+      style={{
+        boxShadow: "0 12px 28px rgba(0,0,0,.07), 0 2px 8px rgba(0,0,0,.05)",
+        borderRadius: 12,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
 }
 
-/* Progressive image with loader/placeholder (round support) - Memoized */
+/* Progressive round image */
 const ProgressiveRoundImage = memo(function ProgressiveRoundImage({
   src,
   alt,
   size = 120,
   ring = true,
-  ringColor = "#E5E7EB",
+  ringColor = "var(--vaani-ring)",
 }) {
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(false);
@@ -113,7 +125,8 @@ const ProgressiveRoundImage = memo(function ProgressiveRoundImage({
         width: size,
         height: size,
         border: ring ? `3px solid ${ringColor}` : "none",
-        background: "#F8FAFC",
+        background:
+          "linear-gradient(180deg,var(--vaani-soft-1),var(--vaani-soft-2))",
       }}
     >
       {!loaded && !err && (
@@ -125,7 +138,7 @@ const ProgressiveRoundImage = memo(function ProgressiveRoundImage({
             backgroundSize: "200% 100%",
             animation: "shimmer 1.2s linear infinite",
             fontSize: 12,
-            color: "#64748B",
+            color: "var(--vaani-muted)",
           }}
         >
           Loading…
@@ -137,12 +150,8 @@ const ProgressiveRoundImage = memo(function ProgressiveRoundImage({
           alt={alt}
           onLoad={() => setLoaded(true)}
           onError={() => setErr(true)}
-          className={`img-fluid rounded-circle ${loaded ? 'd-block' : 'd-none'}`}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
+          className={`img-fluid rounded-circle ${loaded ? "d-block" : "d-none"}`}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       ) : (
         <div className="w-100 h-100 d-flex align-items-center justify-content-center text-muted fs-3">
@@ -154,36 +163,44 @@ const ProgressiveRoundImage = memo(function ProgressiveRoundImage({
   );
 });
 
-/* Typing Effect Component */
+/* Typing Effect */
 const TypingMessage = memo(({ text, onComplete }) => {
-  const [displayedText, setDisplayedText] = useState('');
-  const [isTyping, setIsTyping] = useState(true);
+  const [displayedText, setDisplayedText] = useState("");
+  const bubbleRef = useRef(null);
+
+  const smoothScroll = () => {
+    const container = bubbleRef.current?.closest(".overflow-auto");
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
+  };
 
   useEffect(() => {
     let i = 0;
     const timer = setInterval(() => {
       if (i < text.length) {
-        setDisplayedText(text.substring(0, i + 1));
+        setDisplayedText(() => {
+          const next = text.substring(0, i + 1);
+          if (i % 4 === 0) smoothScroll();
+          return next;
+        });
         i++;
       } else {
-        setIsTyping(false);
         clearInterval(timer);
-        if (onComplete) onComplete();
+        onComplete && onComplete();
+        setTimeout(smoothScroll, 40);
       }
-    }, 20); // Adjust speed as needed
+    }, 18);
     return () => clearInterval(timer);
   }, [text, onComplete]);
 
   return (
-    <div className="p-3 rounded-3 bg-white shadow-sm message-bubble" style={{ maxWidth: '70%', whiteSpace: 'pre-wrap', maxHeight: '40vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      {isTyping ? (
-        <>
-          {displayedText}
-          <span className="typing-cursor">|</span>
-        </>
-      ) : (
-        displayedText
-      )}
+    <div
+      ref={bubbleRef}
+      className="cloud-bubble cloud-assistant"
+      style={{ maxWidth: "72%" }}
+    >
+      <div className="cloud-body">{displayedText}</div>
     </div>
   );
 });
@@ -191,381 +208,160 @@ const TypingMessage = memo(({ text, onComplete }) => {
 /* Thinking Indicator */
 const ThinkingMessage = memo(() => (
   <div className="d-flex justify-content-start mb-3">
-    <div className="p-3 rounded-3 bg-white shadow-sm message-bubble" style={{ maxWidth: '70%', whiteSpace: 'pre-wrap', maxHeight: '40vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <div className="d-flex align-items-center">
-        <div className="spinner-border spinner-border-sm text-primary me-2" role="status" style={{ width: '1rem', height: '1rem' }}></div>
-        <span className="text-muted">Thinking...</span>
+    <div className="cloud-bubble cloud-assistant" style={{ maxWidth: "72%" }}>
+      <div className="cloud-body">
+        <div className="d-flex align-items-center gap-2 text-muted">
+          <div className="spinner-border spinner-border-sm"></div>
+          Thinking…
+        </div>
       </div>
     </div>
   </div>
 ));
 
-/* Messages Component - Separated */
-const Messages = memo(({ messages, personaImg, personaDisplayName, isThinking, isTyping, typingMessage, handleTypingComplete, handleSpeak, chatRef, composerHeight }) => {
-  const isEmpty = messages.length === 0 && !isThinking && !isTyping;
-  const commonStyle = { 
-    background: 'linear-gradient(to bottom, #f8f9fa, #e9ecef)',
-    minHeight: '200px',
-    WebkitOverflowScrolling: 'touch',
-    overscrollBehaviorY: 'contain'
-  };
-  const messagesStyle = {
-    ...commonStyle,
-    paddingBottom: `${composerHeight + 20}px` // Extra padding for safety
-  };
-  const emptyStyle = {
-    ...commonStyle,
-    paddingBottom: `${composerHeight}px`,
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    padding: '3rem'
-  };
+/* Bubble */
+function CloudBubble({ role = "assistant", children, onSpeak }) {
+  const isAssistant = role === "assistant";
+  return (
+    <div className={`cloud-bubble ${isAssistant ? "cloud-assistant" : "cloud-user"}`}>
+      {isAssistant && onSpeak && (
+        <span className="cloud-action" title="Speak" role="button" onClick={onSpeak}>
+          <i className="bi bi-volume-up"></i>
+        </span>
+      )}
+      <div className="cloud-body">{children}</div>
+    </div>
+  );
+}
 
-  if (isEmpty) {
+/* Messages */
+const Messages = memo(
+  ({
+    messages,
+    isThinking,
+    isTyping,
+    typingMessage,
+    typingAvatarUrl,
+    handleTypingComplete,
+    handleSpeak,
+    chatRef,
+  }) => {
     return (
-      <div 
-        className="flex-grow-1 d-flex align-items-end justify-content-center p-3 bg-light text-center text-muted"
-        style={emptyStyle}
+      <div
+        ref={chatRef}
+        className="flex-grow-1 overflow-auto p-3 d-flex flex-column position-relative vaani-messages"
+        style={{
+          background:
+            "radial-gradient(1200px 400px at 10% 0%, var(--vaani-bg-burst) 0%, transparent 60%), linear-gradient(180deg,var(--vaani-bg) 0%, var(--vaani-bg-2) 100%)",
+          minHeight: 0,
+        }}
       >
-        <div className="w-100">
-          <i className="bi bi-chat-square-text display-4 text-muted mb-3 d-block"></i>
-          <p className="lead mb-0">Write a message to start...</p>
-        </div>
+        {messages.map((m, i) => (
+          <div
+            key={i}
+            className={`mb-3 d-flex ${
+              m.role === "assistant" ? "justify-content-start" : "justify-content-end"
+            }`}
+          >
+            {m.role === "assistant" && m.avatarUrl && (
+              <img
+                src={m.avatarUrl}
+                alt="persona"
+                className="me-2 shadow-sm"
+                style={{
+                  width: 40,
+                  height: 40,
+                  objectFit: "cover",
+                  border: "1px solid var(--vaani-border)",
+                  borderRadius: "50%",
+                }}
+              />
+            )}
+
+            <CloudBubble
+              role={m.role}
+              onSpeak={m.role === "assistant" ? () => handleSpeak(m.text) : undefined}
+            >
+              {m.text}
+            </CloudBubble>
+          </div>
+        ))}
+
+        {isThinking && <ThinkingMessage />}
+
+        {isTyping && typingMessage && (
+          <div className="d-flex justify-content-start mb-3">
+            {typingAvatarUrl && (
+              <img
+                src={typingAvatarUrl}
+                alt="persona"
+                className="me-2 shadow-sm"
+                style={{
+                  width: 40,
+                  height: 40,
+                  objectFit: "cover",
+                  border: "1px solid var(--vaani-border)",
+                  borderRadius: "50%",
+                }}
+              />
+            )}
+            <TypingMessage text={typingMessage} onComplete={handleTypingComplete} />
+          </div>
+        )}
+
+        {messages.length === 0 && !isThinking && !isTyping && (
+          <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-muted">
+            <div
+              className="p-4 text-center"
+              style={{
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,.5)",
+                backdropFilter: "blur(8px)",
+                border: "1px dashed var(--vaani-border)",
+                borderRadius: 10,
+              }}
+            >
+              <i className="bi bi-chat-square-text display-4 mb-2 d-block"></i>
+              <p className="lead mb-0">Write a message to start…</p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
+);
 
-  return (
-    <div 
-      ref={chatRef}
-      className="flex-grow-1 overflow-auto p-3 bg-light d-flex flex-column position-relative"
-      style={messagesStyle}
-    >
-      {messages.map((m, i) => (
-        <div
-          key={i}
-          className={`mb-3 d-flex ${m.role === "user" ? 'justify-content-end' : 'justify-content-start'}`}
-        >
-          {m.role === "assistant" && personaImg && (
-            <img
-              src={personaImg}
-              alt={personaDisplayName}
-              className="rounded-circle me-2"
-              style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-            />
-          )}
-          <div
-            className={`p-3 rounded-3 shadow-sm message-bubble ${m.role === "user" ? 'bg-primary text-white' : 'bg-white'}`}
-            style={{ maxWidth: '70%', whiteSpace: 'pre-wrap', maxHeight: '40vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
-          >
-            {m.text}
-          </div>
-          {m.role === "assistant" && (
-            <div className="d-flex gap-2 mt-2">
-              <Button kind="outline" onClick={() => handleSpeak(m.text)} size="sm" title="Speak">
-                <i className="bi bi-volume-up"></i>
-              </Button>
-            </div>
-          )}
-        </div>
-      ))}
-      {isThinking && <ThinkingMessage />}
-      {isTyping && typingMessage && (
-        <div className="d-flex justify-content-start mb-3">
-          {personaImg && (
-            <img
-              src={personaImg}
-              alt={personaDisplayName}
-              className="rounded-circle me-2"
-              style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-            />
-          )}
-          <TypingMessage text={typingMessage} onComplete={handleTypingComplete} />
-        </div>
-      )}
-    </div>
-  );
-});
-
-/* -------------------- Carousels (Responsive horizontal scroll) -------------------- */
-function HCarousel({ personas = [], selectedPersona, onSelectPersona }) {
-  const viewportRef = useRef(null);
-  const isDraggingRef = useRef(false);
-  const startXRef = useRef(0);
-  const startScrollRef = useRef(0);
-  const containerRef = useRef(null);
-
-  const currentIndex = useMemo(() => {
-    return personas.findIndex((p) => p.code === selectedPersona?.code);
-  }, [personas, selectedPersona]);
-
-  const handleSelect = useCallback((dir) => {
-    const idx = currentIndex;
-    const newIdx = idx + dir;
-    if (newIdx >= 0 && newIdx < personas.length) {
-      onSelectPersona(personas[newIdx]);
-    }
-  }, [currentIndex, personas, onSelectPersona]);
-
-  // Auto-scroll to selected persona
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const activeEl = viewportRef.current?.querySelector('.border-success');
-      if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [selectedPersona]);
-
-  // drag-to-scroll (mouse)
-  const onMouseDown = (e) => {
-    const el = viewportRef.current;
-    if (!el) return;
-    isDraggingRef.current = true;
-    startXRef.current = e.pageX - el.offsetLeft;
-    startScrollRef.current = el.scrollLeft;
-    document.body.style.cursor = 'grabbing';
-  };
-  const onMouseLeave = () => {
-    isDraggingRef.current = false;
-    document.body.style.cursor = 'default';
-  };
-  const onMouseUp = () => {
-    isDraggingRef.current = false;
-    document.body.style.cursor = 'default';
-  };
-  const onMouseMove = (e) => {
-    const el = viewportRef.current;
-    if (!el || !isDraggingRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - el.offsetLeft;
-    const walk = (x - startXRef.current) * 1.2;
-    el.scrollLeft = startScrollRef.current - walk;
-  };
-
-  // Touch events for mobile
-  const onTouchStart = (e) => {
-    const el = viewportRef.current;
-    if (!el) return;
-    startXRef.current = e.touches[0].pageX - el.offsetLeft;
-    startScrollRef.current = el.scrollLeft;
-  };
-  const onTouchMove = (e) => {
-    const el = viewportRef.current;
-    if (!el) return;
-    e.preventDefault();
-    const x = e.touches[0].pageX - el.offsetLeft;
-    const walk = (x - startXRef.current) * 1.2;
-    el.scrollLeft = startScrollRef.current - walk;
-  };
-  const onTouchEnd = () => {
-    // No need for isDragging for touch
-  };
-
-  return (
-    <div ref={containerRef} className="position-relative">
-      <div
-        ref={viewportRef}
-        className="d-flex overflow-auto flex-nowrap pb-3 scroll-smooth"
-        style={{
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          WebkitOverflowScrolling: 'touch',
-          overscrollBehaviorX: 'contain',
-          cursor: 'grab',
-        }}
-        onMouseDown={onMouseDown}
-        onMouseLeave={onMouseLeave}
-        onMouseUp={onMouseUp}
-        onMouseMove={onMouseMove}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
-        <style>{`
-          .d-flex.overflow-auto::-webkit-scrollbar {
-            display: none;
-          }
-          @media (max-width: 576px) {
-            .d-flex.overflow-auto {
-              flex-direction: column !important;
-              align-items: center;
-            }
-            .flex-shrink-0 {
-              width: 100% !important;
-              max-width: 250px;
-            }
-          }
-        `}</style>
-        {personas.map((p, i) => {
-          const active = selectedPersona && selectedPersona.code === p.code;
-          return (
-            <div
-              key={p.code || i}
-              className="flex-shrink-0 mx-2"
-              style={{
-                width: 'clamp(180px, 22vw, 220px)',
-              }}
-            >
-              <PersonaCard p={p} active={active} onClick={() => onSelectPersona(p)} />
-            </div>
-          );
-        })}
-      </div>
-      <button
-        onClick={() => handleSelect(-1)}
-        className="btn btn-dark rounded-circle position-absolute top-50 translate-middle-y start-0 ms-2 z-3 shadow-lg"
-        style={{ 
-          width: '40px', 
-          height: '40px', 
-          transform: 'translateY(-50%) translateX(-50%)',
-          opacity: 0.8,
-          transition: 'opacity 0.2s ease',
-        }}
-        onMouseEnter={(e) => e.target.style.opacity = '1'}
-        onMouseLeave={(e) => e.target.style.opacity = '0.8'}
-        aria-label="Previous"
-      >
-        <i className="bi bi-chevron-left"></i>
-      </button>
-      <button
-        onClick={() => handleSelect(1)}
-        className="btn btn-dark rounded-circle position-absolute top-50 translate-middle-y end-0 me-2 z-3 shadow-lg"
-        style={{ 
-          width: '40px', 
-          height: '40px', 
-          transform: 'translateY(-50%) translateX(50%)',
-          opacity: 0.8,
-          transition: 'opacity 0.2s ease',
-        }}
-        onMouseEnter={(e) => e.target.style.opacity = '1'}
-        onMouseLeave={(e) => e.target.style.opacity = '0.8'}
-        aria-label="Next"
-      >
-        <i className="bi bi-chevron-right"></i>
-      </button>
-    </div>
-  );
-}
-
-/* Vertical Scroll for Categories */
-function VScroll({ children, containerRef, categories = [], selectedCategory = "", onSelectCategory }) {
-  const viewportRef = useRef(null);
-
-  const currentIndex = useMemo(() => {
-    return categories.findIndex((c) => {
-      const cat = typeof c === "string" ? c : (c.code || c.name || c);
-      return cat === selectedCategory;
-    });
-  }, [categories, selectedCategory]);
-
-  const handleNav = useCallback((dir) => {
-    const idx = currentIndex;
-    const newIdx = idx + dir;
-    if (newIdx >= 0 && newIdx < categories.length) {
-      const target = categories[newIdx];
-      const cat = typeof target === "string" ? target : (target.code || target.name || target);
-      const label = typeof target === "string"
-        ? target
-        : target.displayName || target.name || target.code || `Category ${newIdx}`;
-      onSelectCategory(cat, label);
-    }
-  }, [currentIndex, categories, onSelectCategory]);
-
-  // Auto-scroll to selected category
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const activeEl = viewportRef.current?.querySelector('.border-primary');
-      if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [selectedCategory]);
-
-  useEffect(() => {
-    // Ensure viewport has proper height
-    if (viewportRef.current && containerRef.current) {
-      const containerHeight = containerRef.current.offsetHeight;
-      viewportRef.current.style.height = `${containerHeight}px`;
-    }
-  }, [containerRef, children]);
-
-  return (
-    <div className="position-relative w-100 h-100">
-      <div
-        ref={viewportRef}
-        className="overflow-auto"
-        style={{
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          WebkitOverflowScrolling: 'touch',
-          overscrollBehaviorY: 'contain',
-          height: '100%',
-        }}
-      >
-        <style>{`
-          .overflow-auto::-webkit-scrollbar {
-            display: none;
-          }
-        `}</style>
-        <div className="d-flex flex-column">
-          {children}
-        </div>
-      </div>
-      <button
-        onClick={() => handleNav(-1)}
-        className="btn btn-dark rounded-circle position-absolute top-0 start-50 translate-middle-x z-5 shadow"
-        style={{ 
-          width: '28px', 
-          height: '28px', 
-          opacity: 0.7,
-          transition: 'opacity 0.2s ease',
-          transform: 'translateX(-50%)',
-        }}
-        onMouseEnter={(e) => e.target.style.opacity = '1'}
-        onMouseLeave={(e) => e.target.style.opacity = '0.7'}
-        aria-label="Scroll Up"
-      >
-        <i className="bi bi-chevron-up fs-7 d-flex justify-content-center align-items-center w-100 h-100 text-white"></i>
-      </button>
-      <button
-        onClick={() => handleNav(1)}
-        className="btn btn-dark rounded-circle position-absolute bottom-0 start-50 translate-middle-x z-5 shadow"
-        style={{ 
-          width: '28px', 
-          height: '28px', 
-          opacity: 0.7,
-          transition: 'opacity 0.2s ease',
-          transform: 'translateX(-50%)',
-        }}
-        onMouseEnter={(e) => e.target.style.opacity = '1'}
-        onMouseLeave={(e) => e.target.style.opacity = '0.7'}
-        aria-label="Scroll Down"
-      >
-        <i className="bi bi-chevron-down fs-7 d-flex justify-content-center align-items-center w-100 h-100 text-white"></i>
-      </button>
-    </div>
-  );
-}
-
-/* Memoized Cards */
-const CategoryCard = memo(function CategoryCard({ cat, label, img, active, onClick }) {
+/* Cards */
+const CategoryCard = memo(function CategoryCard({
+  cat,
+  label,
+  img,
+  active,
+  onClick,
+}) {
   return (
     <button
       onClick={() => onClick(cat, label)}
-      className={`btn d-block text-center rounded-3 p-2 border-0 shadow-sm position-relative overflow-hidden ${active ? 'border-primary bg-primary shadow' : ''}`}
-      style={{ width: "100%", transition: 'all 0.2s ease' }}
+      className={`btn d-block text-start p-2 border-0 position-relative overflow-hidden w-100 ${
+        active ? "bg-success text-white" : "bg-white"
+      }`}
+      style={{
+        transition: "transform .15s ease, box-shadow .15s ease",
+        boxShadow: "0 10px 24px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.04)",
+        borderRadius: 12,
+      }}
       title={label}
+      onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+      onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
     >
-      {active && <div className="position-absolute top-0 start-0 w-100 h-100 bg-primary opacity-10"></div>}
-      <ProgressiveRoundImage src={img} alt={label} size={64} ring={!active} />
-      <div className="pt-2 position-relative">
-        <div className={`fw-bold small ${active ? 'text-white' : 'text-dark'}`}>
-          {label}
+      <div className="d-flex align-items-center gap-3">
+        <ProgressiveRoundImage src={img} alt={label} size={54} ring={!active} />
+        <div className="flex-grow-1">
+          <div className={`fw-semibold ${active ? "text-white" : "text-dark"}`}>
+            {label}
+          </div>
+          {!active && <small className="text-muted">Browse personas</small>}
         </div>
+        {active && <i className="bi bi-check-circle-fill opacity-75"></i>}
       </div>
     </button>
   );
@@ -578,18 +374,31 @@ const PersonaCard = memo(function PersonaCard({ p, active, onClick }) {
   return (
     <button
       onClick={() => onClick(p)}
-      className={`btn d-block text-center rounded-3 p-2 border-0 shadow-sm ${active ? 'border-success bg-success-subtle shadow' : ''}`}
-      style={{ width: "100%", transition: 'all 0.2s ease' }}
+      className={`btn d-block text-center p-2 border-0 shadow-sm ${
+        active ? "border-success bg-success-subtle" : "bg-white"
+      }`}
+      style={{
+        width: "100%",
+        marginTop: 8,
+        transition: "transform .15s ease, box-shadow .15s ease",
+        borderRadius: 12,
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+      onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
       title={label}
     >
       <ProgressiveRoundImage src={img} alt={label} size={100} ring={!active} />
       <div className="pt-2">
-        <div className={`fw-bold ${active ? 'text-success' : 'text-dark'}`}>
+        <div className={`fw-bold ${active ? "text-success" : "text-dark"}`}>
           {label}
         </div>
         {g ? (
-          <div className={`small mt-1 ${active ? 'text-success-emphasis' : 'text-muted'}`}>
-            {g === "male" ? "Male" : g === "female" ? "Female" : g}
+          <div
+            className={`small mt-1 ${
+              active ? "text-success-emphasis" : "text-muted"
+            }`}
+          >
+            {g}
           </div>
         ) : null}
       </div>
@@ -597,55 +406,71 @@ const PersonaCard = memo(function PersonaCard({ p, active, onClick }) {
   );
 });
 
-/* Composer Component */
-const Composer = memo(({ userMsg, onUserMsgChange, onSendMessage, selectedPersona, personaDisplayName, isThinking, isTyping, showAvatar, onToggleAvatar, composerRef }) => (
-  <div 
-    ref={composerRef}
-    className="position-fixed bottom-0 bg-white border-top border-secondary-subtle p-3 shadow-lg z-1050 composer"
-    style={{ 
-      paddingLeft: '1.5rem',
-      paddingRight: '1.5rem',
-      left: 0,
-      right: 0
-    }}
-  >
-    <div className="input-group">
-      <textarea
-        className="form-control border-0 shadow-sm"
-        rows={2}
-        placeholder={
-          selectedPersona
-            ? `Ask ${personaDisplayName}...`
-            : "Select a persona first..."
-        }
-        value={userMsg}
-        onChange={(e) => onUserMsgChange(e.target.value)}
-        onKeyDown={onSendMessage}
-        disabled={!selectedPersona || isThinking || isTyping}
-      />
-      <Button
-        onClick={() => onSendMessage(null)}
-        disabled={!selectedPersona || !userMsg.trim() || isThinking || isTyping}
-        className="btn-primary px-4"
-      >
-        <i className="bi bi-send"></i>
-      </Button>
-      <Button
-        kind="gray"
-        onClick={() => onToggleAvatar()}
-        className="btn-outline-secondary px-3"
-        title="Toggle Avatar"
-        disabled={isThinking || isTyping}
-      >
-        <i className={`bi ${showAvatar ? 'bi-eye-slash' : 'bi-eye'}`}></i>
-      </Button>
+/* Persona Carousel */
+function HCarousel({ personas = [], selectedPersona, onSelectPersona }) {
+  const viewportRef = useRef(null);
+
+  useEffect(() => {
+    if (!viewportRef.current || !selectedPersona) return;
+    const cards = viewportRef.current.querySelectorAll("[data-pcard='1']");
+    const idx = personas.findIndex((p) => p.code === selectedPersona.code);
+    if (idx < 0) return;
+    const el = cards[idx];
+    if (!el) return;
+    const container = viewportRef.current;
+    const elRect = el.getBoundingClientRect();
+    const cRect = container.getBoundingClientRect();
+    const offset = el.offsetLeft - (cRect.width - elRect.width) / 2;
+    container.scrollTo({ left: offset, behavior: "smooth" });
+  }, [selectedPersona, personas]);
+
+  return (
+    <div
+      ref={viewportRef}
+      className="d-flex overflow-auto flex-nowrap pb-3 px-2"
+      style={{
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
+        WebkitOverflowScrolling: "touch",
+        overscrollBehaviorX: "contain",
+        borderTop: "1px solid var(--vaani-border)",
+        borderBottom: "1px solid var(--vaani-border)",
+        background: "var(--vaani-surface)",
+        minHeight: 180,
+      }}
+    >
+      <style>{`.d-flex.overflow-auto::-webkit-scrollbar{display:none}`}</style>
+
+      {Array.isArray(personas) && personas.length > 0 ? (
+        personas.map((p, i) => {
+          const active = selectedPersona && selectedPersona.code === p.code;
+          return (
+            <div
+              key={p.code || i}
+              className="flex-shrink-0 mx-2"
+              style={{ width: "clamp(180px, 22vw, 220px)" }}
+              data-pcard="1"
+            >
+              <PersonaCard
+                p={p}
+                active={!!active}
+                onClick={(pp) => onSelectPersona?.(pp)}
+              />
+            </div>
+          );
+        })
+      ) : (
+        <div className="w-100 text-center text-muted py-4">
+          <small>No personas in this category.</small>
+        </div>
+      )}
     </div>
-  </div>
-));
+  );
+}
 
 /* -------------------- Main App -------------------- */
 export default function App() {
-  // App state (unchanged)
+  // core state
   const [sessionId, setSessionId] = useState(uid());
   const prevSessionRef = useRef(sessionId);
   const [categories, setCategories] = useState([]);
@@ -658,95 +483,66 @@ export default function App() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // New states
-  const [showAvatar, setShowAvatar] = useState(false);
-  const [typingMessage, setTypingMessage] = useState(null);
-  const [isTyping, setIsTyping] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
-
-  // Responsive state
+  // ui
   const [isMobile, setIsMobile] = useState(false);
-
-  // Dynamic viewport height for keyboard handling
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  const [dark, setDark] = useState(false);
 
-  // Chat scroll ref
-  const chatRef = useRef(null);
-
-  // Composer ref for height calculation
-  const composerRef = useRef(null);
-
-  // TTS (unchanged)
+  // TTS states
   const [voices, setVoices] = useState([]);
   const [voiceURI, setVoiceURI] = useState("");
   const [text, setText] = useState("");
   const [speaking, setSpeaking] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [rate, setRate] = useState(1.0),
-    [pitch, setPitch] = useState(1.0),
-    [volume, setVolume] = useState(1);
-  const [blink, setBlink] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [rate, setRate] = useState(1.0);
+  const [pitch, setPitch] = useState(1.0);
+  const [volume, setVolume] = useState(1);
 
-  // Lip sync (unchanged)
-  const [mouthScale, setMouthScale] = useState(0.25);
-  const [articulation, setArticulation] = useState(1.35);
-  const utterRef = useRef(null);
-  const idxRef = useRef(0);
-  const boundarySeen = useRef(false);
-  const fallbackTimer = useRef(null);
-  const rafRef = useRef(0);
-  const lastBoundaryAt = useRef(0);
-  const spokenTextRef = useRef("");
-  const originalTextRef = useRef("");
+  // typing/thinking
+  const [typingMessage, setTypingMessage] = useState(null);
+  const [typingAvatarUrl, setTypingAvatarUrl] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 
-  // Categories scroll container ref
+  // Reader panel + avatar animation
+  const [showReader, setShowReader] = useState(false);
+  const [avatarMouth, setAvatarMouth] = useState(0.35);
+  const [avatarBlink, setAvatarBlink] = useState(true);
+
+  // timers/raf for viseme engine
+  const rafRef = useRef(null);
+  const timeoutsRef = useRef([]);
+
+  // refs
+  const chatRef = useRef(null);
   const categoriesContainerRef = useRef(null);
 
-  // Dynamic padding for messages based on composer height
-  const [composerHeight, setComposerHeight] = useState(80); // Default height
+  // left sidebar style
+  const categoriesStyle = {
+    position: isMobile ? "static" : "sticky",
+    top: isMobile ? "auto" : 88,
+    height: isMobile ? "auto" : "calc(100vh - 100px)",
+    display: "flex",
+    flexDirection: "column",
+    background: "var(--vaani-surface)",
+    border: "1px solid var(--vaani-border)",
+    borderRadius: 12,
+  };
 
-  // Scroll to bottom function
-  const scrollToBottom = useCallback(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
-  }, []);
-
-  // Responsive check
+  /* Responsive */
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 992);
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+  useEffect(() => {
+    const handleResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Dynamic viewport height for keyboard
-  useEffect(() => {
-    const handleResize = () => {
-      setViewportHeight(window.innerHeight);
-      // Scroll to bottom on resize (keyboard open/close)
-      setTimeout(scrollToBottom, 300);
-    };
-
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Initial call
-    return () => window.removeEventListener('resize', handleResize);
-  }, [scrollToBottom]);
-
-  // Update composer height
-  useEffect(() => {
-    if (composerRef.current) {
-      setComposerHeight(composerRef.current.offsetHeight);
-    }
-  }, [userMsg, isTyping, isThinking, viewportHeight]);
-
-  // Auto-scroll chat to bottom with delay
-  useEffect(() => {
-    setTimeout(scrollToBottom, 150);
-  }, [messages, typingMessage, isThinking, isTyping, composerHeight, scrollToBottom]);
-
-  // No-horizontal-scroll for page
+  /* No horizontal scroll */
   useEffect(() => {
     const el = document.documentElement;
     const body = document.body;
@@ -760,7 +556,7 @@ export default function App() {
     };
   }, []);
 
-  // Load data (unchanged)
+  /* Load data */
   useEffect(() => {
     (async () => {
       try {
@@ -785,7 +581,7 @@ export default function App() {
   }, []);
 
   async function loadByCategory(cat, label) {
-    stopAll(true);
+    stopAll();
     setSelectedCategory(cat);
     setSelectedCategoryName(label);
     setSelectedPersona(null);
@@ -795,12 +591,13 @@ export default function App() {
       );
       if (res.ok) {
         const list = await res.json();
-        setPersonasGrouped((prev) => ({ ...prev, [cat]: list || [] }));
+        const arr = Array.isArray(list) ? list : list?.data || [];
+        setPersonasGrouped((prev) => ({ ...prev, [cat]: arr }));
       }
     } catch {}
   }
 
-  // Voices list & pick by gender (unchanged)
+  /* Voices load + re-pick */
   useEffect(() => {
     const loadVoices = () => {
       const list = window.speechSynthesis?.getVoices() || [];
@@ -808,7 +605,9 @@ export default function App() {
       if (selectedPersona) {
         const best = pickVoiceByGender(
           list,
-          selectedPersona.gender || selectedPersona.genderCode || selectedPersona.sex
+          selectedPersona.gender ||
+            selectedPersona.genderCode ||
+            selectedPersona.sex
         );
         if (best && best.voiceURI !== voiceURI) setVoiceURI(best.voiceURI);
       }
@@ -820,10 +619,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPersona]);
 
-  // On persona change: stop, reset session, repick voice (unchanged)
+  /* Persona change → reset session & messages */
   useEffect(() => {
     if (!selectedPersona) return;
-    stopAll(true);
+    stopAll();
     const prev = prevSessionRef.current;
     if (prev) {
       try {
@@ -837,57 +636,79 @@ export default function App() {
     setSessionId(nid);
     setMessages([]);
     setText("");
-
-    if (voices.length) {
-      const best = pickVoiceByGender(
-        voices,
-        selectedPersona.gender || selectedPersona.genderCode || selectedPersona.sex
-      );
-      if (best && best.voiceURI !== voiceURI) setVoiceURI(best.voiceURI);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPersona]);
 
-  // ========== TTS / Lip-sync ==========
-  const durScale = useMemo(() => {
-    const r = Math.min(1.5, Math.max(0.6, rate));
-    return 0.25 + 1 / r;
-  }, [rate]);
+  /* ===== Keyboard navigation ===== */
+  const personaList = selectedCategory
+    ? personasGrouped[selectedCategory] || []
+    : [];
+  const currentPersonaIndex = useMemo(
+    () =>
+      selectedPersona
+        ? personaList.findIndex((p) => p.code === selectedPersona.code)
+        : -1,
+    [personaList, selectedPersona]
+  );
+  const currentCategoryIndex = useMemo(
+    () => categories.findIndex((c) => catCode(c) === selectedCategory),
+    [categories, selectedCategory]
+  );
 
-  const classify = useMemo(() => {
-    const vowels = /[aāâáàeēéèiīíoōóòuūúùoअआइईउऊएऐओऔ]/i;
-    const softs = /[महनलरयवसफमं]/i;
-    const digits = /[0-9०-९]/;
-    const bracket = /[(){}[\]]/;
-    return (chSp, nextSp, chO) => {
-      const c = (chSp || " ").toLowerCase();
-      if (chO === "!")
-        return { open: 1.35, dur: 140 * durScale, pause: 180 * durScale };
-      if (chO === "?")
-        return { open: 0.85, dur: 160 * durScale, pause: 260 * durScale };
-      if (c === "…" || (c === "." && nextSp === "."))
-        return { open: 0.18, dur: 220 * durScale, pause: 420 * durScale };
-      if (c === ".")
-        return { open: 0.12, dur: 240 * durScale, pause: 340 * durScale };
-      if (c === "।")
-        return { open: 0.14, dur: 260 * durScale, pause: 360 * durScale };
-      if (/[,;:]/.test(c))
-        return { open: 0.22, dur: 160 * durScale, pause: 160 * durScale };
-      if (/[—-]/.test(c))
-        return { open: 0.2, dur: 140 * durScale, pause: 120 * durScale };
-      if (/["“”'’‘]/.test(c))
-        return { open: 0.24, dur: 110 * durScale, pause: 100 * durScale };
-      if (bracket.test(c))
-        return { open: 0.22, dur: 120 * durScale, pause: 110 * bracket };
-      if (/\s/.test(c))
-        return { open: 0.3, dur: 110 * durScale, pause: 40 * durScale };
-      if (vowels.test(c)) return { open: 1.2, dur: 180 * durScale };
-      if (softs.test(c)) return { open: 0.9, dur: 130 * durScale };
-      if (digits.test(c)) return { open: 0.75, dur: 120 * durScale };
-      return { open: 0.7, dur: 110 * durScale };
+  const stepPersona = useCallback(
+    (dir) => {
+      if (!personaList.length) return;
+      let idx = currentPersonaIndex;
+      if (idx === -1) idx = 0;
+      const newIdx = idx + dir;
+      if (newIdx >= 0 && newIdx < personaList.length) {
+        setSelectedPersona(personaList[newIdx]);
+      }
+    },
+    [personaList, currentPersonaIndex]
+  );
+
+  const stepCategory = useCallback(
+    (dir) => {
+      if (!categories.length) return;
+      const idx = currentCategoryIndex;
+      const newIdx = idx + dir;
+      if (newIdx >= 0 && newIdx < categories.length) {
+        const target = categories[newIdx];
+        const code = catCode(target);
+        const label = catLabel(target, newIdx);
+        loadByCategory(code, label);
+      }
+    },
+    [categories, currentCategoryIndex]
+  );
+
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = (e.target?.tagName || "").toLowerCase();
+      const isEditable =
+        tag === "input" || tag === "textarea" || e.target?.isContentEditable;
+      if (isEditable) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        stepPersona(-1);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        stepPersona(1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        stepCategory(-1);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        stepCategory(1);
+      }
     };
-  }, [durScale]);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [stepPersona, stepCategory]);
 
+  /* ===== TTS base ===== */
   function normalizeTextForSpeech(t) {
     return t
       .replace(/!/g, "।")
@@ -896,662 +717,757 @@ export default function App() {
       .replace(/\.\s+/g, "। ");
   }
 
-  function tweenMouth(to, ms = 90) {
-    const start = performance.now();
-    const from = mouthScale;
-    const target = Math.max(0.22, Math.min(1.6, to));
-    cancelAnimationFrame(rafRef.current);
-    const anim = (t) => {
-      const k = Math.min(1, (t - start) / Math.max(90, ms));
-      const ease = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-      setMouthScale(from + (target - from) * ease);
-      if (k < 1) rafRef.current = requestAnimationFrame(anim);
-    };
-    rafRef.current = requestAnimationFrame(anim);
-  }
-
-  function simulateLipSync() {
-    clearFallback();
-    const loop = () => {
-      if (!speaking) return;
-      const i = idxRef.current;
-      const s = spokenTextRef.current;
-      const o = originalTextRef.current;
-      const chS = s[i] || " ";
-      const nextS = s[i + 1] || " ";
-      const chO = o[i] || " ";
-      const { open, dur, pause = 0 } = classify(chS, nextS, chO);
-      const boosted = open * articulation;
-      const tgt = Math.max(
-        0.25,
-        Math.min(1.6, mouthScale * 0.25 + boosted * 0.75)
-      );
-      const openDur = Math.min(200, dur * (0.6 + 0.3 * Math.min(1, boosted)));
-      tweenMouth(tgt, openDur);
-      setTimeout(
-        () => tweenMouth(0.3, Math.min(220, 70 + dur * 0.6)),
-        dur * 0.8
-      );
-      idxRef.current++;
-      if (idxRef.current < s.length) {
-        fallbackTimer.current = setTimeout(loop, dur + pause + 40);
-      }
-    };
-    loop();
-  }
-
-  function clearFallback() {
-    clearTimeout(fallbackTimer.current);
-    cancelAnimationFrame(rafRef.current);
-  }
-  function stopAll(silent = false) {
-    clearFallback();
-    try {
-      window.speechSynthesis.cancel();
-    } catch {}
+  function stopAll() {
+    try { window.speechSynthesis.cancel(); } catch {}
     setSpeaking(false);
-    setPaused(false);
-    if (!silent) tweenMouth(0.24, 200);
+    setAvatarMouth(0.35);
+    // clear scheduled timeouts
+    timeoutsRef.current.forEach((id) => clearTimeout(id));
+    timeoutsRef.current = [];
+    // cancel raf
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
   }
 
-  function handleSpeak(forcedText) {
-    if (!window.speechSynthesis) return alert("Speech Synthesis not supported");
-    const toSpeak = (forcedText ?? text ?? "").trim();
-    if (!toSpeak) return;
+  const handleSpeak = useCallback(
+    (forcedText) => {
+      if (!window.speechSynthesis) return alert("Speech Synthesis not supported");
+      const toSpeak = (forcedText ?? text ?? "").trim();
+      if (!toSpeak) return;
+      const chosen =
+        pickVoiceByGender(
+          voices,
+          normalizeGender(
+            selectedPersona?.gender ||
+              selectedPersona?.genderCode ||
+              selectedPersona?.sex
+          )
+        ) || voices.find((v) => v.voiceURI === voiceURI);
+      if (!chosen) return alert("Enable Hindi voices (Microsoft Rishi/Lekha).");
+      if (voiceURI !== chosen.voiceURI) setVoiceURI(chosen.voiceURI);
 
-    const chosen =
-      pickVoiceByGender(
-        voices,
-        normalizeGender(
-          selectedPersona?.gender ||
-            selectedPersona?.genderCode ||
-            selectedPersona?.sex
-        )
-      ) || voices.find((v) => v.voiceURI === voiceURI);
-
-    if (!chosen)
-      return alert(
-        "Enable Hindi voices (Microsoft Rishi/Lekha)."
-      );
-
-    if (voiceURI !== chosen.voiceURI) setVoiceURI(chosen.voiceURI);
-
-    stopAll(true);
-    idxRef.current = 0;
-    boundarySeen.current = false;
-    lastBoundaryAt.current = 0;
-
-    const original = toSpeak;
-    const spoken = normalizeTextForSpeech(original);
-    originalTextRef.current = original;
-    spokenTextRef.current = spoken;
-
-    const utter = new SpeechSynthesisUtterance(spoken);
-    utterRef.current = utter;
-    utter.rate = rate;
-    utter.pitch = pitch;
-    utter.volume = volume;
-    utter.voice = chosen;
-    utter.lang = chosen.lang || "hi-IN";
-
-    utter.onstart = () => {
+      stopAll();
+      const utter = new SpeechSynthesisUtterance(normalizeTextForSpeech(toSpeak));
+      utter.rate = rate;
+      utter.pitch = pitch;
+      utter.volume = volume;
+      utter.voice = chosen;
+      utter.lang = chosen.lang || "hi-IN";
+      window.speechSynthesis.speak(utter);
       setSpeaking(true);
-      setPaused(false);
-      tweenMouth(0.4, 140);
-      fallbackTimer.current = setTimeout(() => {
-        if (!boundarySeen.current) simulateLipSync();
-      }, 450);
-    };
+      utter.onend = () => setSpeaking(false);
+    },
+    [voices, selectedPersona, voiceURI, rate, pitch, volume, text]
+  );
 
-    utter.onend = () => {
-      clearFallback();
-      setSpeaking(false);
-      tweenMouth(0.24, 220);
-    };
+  /* ====== Viseme Engine (letter/punctuation aware) ====== */
+  function charToMouthTarget(ch) {
+    const c = (ch || "").toLowerCase();
 
-    utter.onboundary = (e) => {
-      boundarySeen.current = true;
-      const now = performance.now();
-      if (now - lastBoundaryAt.current < 90) return;
-      lastBoundaryAt.current = now;
+    const devVowels = /[अआइईउऊएऐओऔािीुूेैोौंः]/;
+    const vowels = /[aeiou]/i;
+    const plosives = /[pbtdkgqकखगघचछजझटठडढतथदधपफबभक़क़ग़]/i;
+    const sibilants = /[fvszशषसझछ]/i;
 
-      const i = e.charIndex ?? idxRef.current;
-      idxRef.current = i;
+    const punctuationSoft = /[,:;–—-]/;
+    const punctuationHard = /[.?!…।]/;
 
-      const s = spokenTextRef.current;
-      const o = originalTextRef.current;
-      const chS = s[i] || " ";
-      const nextS = s[i + 1] || " ";
-      const chO = o[i] || " ";
-      const { open, dur, pause = 0 } = classify(chS, nextS, chO);
-      const boosted = open * articulation;
-      const tgt = Math.max(
-        0.25,
-        Math.min(1.6, mouthScale * 0.25 + boosted * 0.75)
-      );
-      const openDur = Math.min(200, dur * (0.6 + 0.3 * Math.min(1, boosted)));
-      tweenMouth(tgt, openDur);
-      setTimeout(
-        () => tweenMouth(0.3, Math.min(220, 70 + dur * 0.6)),
-        dur * 0.8 + pause * 0.5
-      );
-    };
+    if (punctuationHard.test(c)) return { t: 0.30, hold: 140 };
+    if (punctuationSoft.test(c)) return { t: 0.34, hold: 90 };
 
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
+    if (devVowels.test(c) || vowels.test(c)) return { t: 0.87, hold: 75 };
+    if (plosives.test(c)) return { t: 0.26, hold: 30 };
+    if (sibilants.test(c)) return { t: 0.60, hold: 60 };
+
+    return { t: 0.48, hold: 55 };
   }
 
-  /* -------------------- Chat -------------------- */
-  const sendMessage = useCallback(async (e) => {
-    if (e?.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-    } else if (e) {
-      return;
+  function buildVisemeTimeline(text, rate = 1) {
+    const cpsBase = 13.5; // characters per second (heuristic)
+    const cps = cpsBase * rate;
+    const msPerChar = 1000 / cps;
+
+    const tl = [];
+    let t = 0;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+
+      if (/\s/.test(ch)) {
+        t += msPerChar * 0.7;
+        continue;
+      }
+
+      const { t: target, hold } = charToMouthTarget(ch);
+      tl.push({ atMs: t, target });
+
+      if (/[aeiou]/i.test(ch)) {
+        t += msPerChar * 1.2 + (hold || 0) * 0.2;
+      } else if (/[.?!…।]/.test(ch)) {
+        t += msPerChar * 1.4 + (hold || 0);
+      } else if (/[,:;–—-]/.test(ch)) {
+        t += msPerChar * 1.0 + (hold || 0) * 0.6;
+      } else {
+        t += msPerChar * 0.9 + (hold || 0) * 0.25;
+      }
     }
-    if (!selectedPersona) {
-      alert("Please select a persona first.");
-      return;
-    }
-    const msg = userMsg.trim();
-    if (!msg) return;
-    setMessages((m) => [...m, { role: "user", text: msg }]);
-    setTimeout(scrollToBottom, 0);
-    const tempUserMsg = userMsg;
-    setUserMsg("");
-    setIsThinking(true);
-    setIsTyping(false);
-    setTypingMessage(null);
-    try {
-      const res = await fetch(`${BASE_URL}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          persona:
-            selectedPersona.code ||
-            selectedPersona.id ||
-            selectedPersona.persona ||
-            selectedPersona.name,
-          message: msg,
-        }),
-      });
-      if (!res.ok) throw new Error(`Chat error (${res.status})`);
-      const reply = await readChatReply(res);
-      setIsThinking(false);
-      setTypingMessage(reply);
-      setText(reply || "");
-      setIsTyping(true);
-    } catch (error) {
-      console.error("Chat error:", error);
-      setErr(error.message || "Chat failed");
-      setMessages((m) => [...m, { role: "assistant", text: "⚠️ An error occurred." }]);
-      setTimeout(scrollToBottom, 0);
-      setIsThinking(false);
+
+    tl.push({ atMs: t + 160, target: 0.35 });
+    return tl;
+  }
+
+  const speakWithAvatar = useCallback(
+    (forcedText) => {
+      if (!window.speechSynthesis) return alert("Speech Synthesis not supported");
+
+      const raw = (forcedText ?? text ?? "").trim();
+      if (!raw) return;
+
+      const chosen =
+        pickVoiceByGender(
+          voices,
+          normalizeGender(
+            selectedPersona?.gender ||
+              selectedPersona?.genderCode ||
+              selectedPersona?.sex
+          )
+        ) || voices.find((v) => v.voiceURI === voiceURI);
+
+      if (!chosen) return alert("Enable Hindi voices (Microsoft Rishi/Lekha).");
+      if (voiceURI !== chosen.voiceURI) setVoiceURI(chosen.voiceURI);
+
+      stopAll();
+
+      const speakText = normalizeTextForSpeech(raw);
+      const utter = new SpeechSynthesisUtterance(speakText);
+      utter.rate = rate;
+      utter.pitch = pitch;
+      utter.volume = volume;
+      utter.voice = chosen;
+      utter.lang = chosen.lang || "hi-IN";
+
+      const timeline = buildVisemeTimeline(raw, rate);
+      const startAt = performance.now();
+      let idx = 0;
+      let mouthTarget = 0.35;
+      const ease = 0.35;
+
+      const rafTick = () => {
+        setAvatarMouth((prev) => {
+          const next = prev + (mouthTarget - prev) * ease;
+          return Math.max(0.2, Math.min(1.0, next));
+        });
+
+        const now = performance.now();
+        const elapsed = now - startAt;
+
+        while (idx < timeline.length && elapsed >= timeline[idx].atMs) {
+          mouthTarget = timeline[idx].target;
+          idx += 1;
+        }
+
+        rafRef.current = requestAnimationFrame(rafTick);
+      };
+      rafRef.current = requestAnimationFrame(rafTick);
+
+      utter.onboundary = (e) => {
+        if (e.name !== "word") return;
+        const ci = Math.max(0, Math.min(raw.length - 1, e.charIndex || 0));
+        const ch = raw[ci];
+        if (!ch) return;
+
+        const { t: quickTarget } = charToMouthTarget(ch);
+        mouthTarget = quickTarget;
+
+        if (ci % 22 === 0) setAvatarBlink((b) => !b);
+      };
+
+      const cleanup = () => {
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+        timeoutsRef.current.forEach((id) => clearTimeout(id));
+        timeoutsRef.current = [];
+        setAvatarMouth(0.35);
+        setSpeaking(false);
+      };
+
+      utter.onend = cleanup;
+      utter.onerror = cleanup;
+
+      window.speechSynthesis.speak(utter);
+      setSpeaking(true);
+    },
+    [voices, selectedPersona, voiceURI, rate, pitch, volume, text]
+  );
+
+  /* -------------------- Auto scroll -------------------- */
+  const scrollToBottom = useCallback((smooth = true) => {
+    const el = chatRef.current;
+    if (!el) return;
+    try { el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" }); }
+    catch { el.scrollTop = el.scrollHeight; }
+  }, []);
+
+  /* -------------------- Chat send -------------------- */
+  const sendMessage = useCallback(
+    async (e) => {
+      if (e?.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+      } else if (e) {
+        return;
+      }
+      if (!selectedPersona) return alert("Please select a persona first.");
+      const msg = userMsg.trim();
+      if (!msg) return;
+
+      setMessages((m) => [...m, { role: "user", text: msg }]);
+      setTimeout(() => scrollToBottom(true), 0);
+
+      const tempUserMsg = userMsg;
+      setUserMsg("");
+      setIsThinking(true);
       setIsTyping(false);
-      setUserMsg(tempUserMsg); // Restore message on error
-    }
-  }, [userMsg, selectedPersona, sessionId, scrollToBottom]);
+      setTypingMessage(null);
+      setTypingAvatarUrl(null);
+
+      try {
+        const res = await fetch(`${BASE_URL}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            persona:
+              selectedPersona.code ||
+              selectedPersona.id ||
+              selectedPersona.persona ||
+              selectedPersona.name,
+            message: msg,
+          }),
+        });
+        if (!res.ok) throw new Error(`Chat error (${res.status})`);
+        const reply = await readChatReply(res);
+
+        setIsThinking(false);
+        setTypingMessage(reply);
+        setTypingAvatarUrl(
+          selectedPersona
+            ? selectedPersona.image || selectedPersona.imageUrl || null
+            : null
+        );
+        setText(reply || "");
+        setIsTyping(true);
+        setTimeout(() => scrollToBottom(true), 0);
+      } catch (error) {
+        console.error("Chat error:", error);
+        setErr(error.message || "Chat failed");
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", text: "⚠️ An error occurred." },
+        ]);
+        setTimeout(() => scrollToBottom(true), 0);
+        setIsThinking(false);
+        setIsTyping(false);
+        setUserMsg(tempUserMsg);
+      }
+    },
+    [userMsg, selectedPersona, sessionId, scrollToBottom, voices, voiceURI, rate, pitch, volume, text]
+  );
 
   const handleTypingComplete = useCallback(() => {
     if (typingMessage) {
-      setMessages((m) => [...m, { role: "assistant", text: typingMessage }]);
-      setTimeout(scrollToBottom, 0);
+      const avatarUrl =
+        typingAvatarUrl ??
+        (selectedPersona
+          ? selectedPersona.image || selectedPersona.imageUrl || null
+          : null);
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", text: typingMessage, avatarUrl },
+      ]);
+      setTimeout(() => scrollToBottom(true), 0);
     }
     setIsTyping(false);
     setTypingMessage(null);
-  }, [typingMessage, scrollToBottom]);
+    setTypingAvatarUrl(null);
+  }, [typingMessage, typingAvatarUrl, selectedPersona, scrollToBottom]);
 
-  const personaList = selectedCategory
-    ? personasGrouped[selectedCategory] || []
-    : [];
+  const personaDisplayName = selectedPersona
+    ? selectedPersona.displayName || selectedPersona.name || selectedPersona.code
+    : "a persona";
 
-  const personaDisplayName = selectedPersona ? (selectedPersona.displayName || selectedPersona.name || selectedPersona.code) : "a persona";
+  /* Theme vars */
+  useEffect(() => {
+    const root = document.documentElement;
+    const setVars = (vars) =>
+      Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    if (!dark) {
+      setVars({
+        "--vaani-bg": "#f7fafc",
+        "--vaani-bg-2": "#eef2f7",
+        "--vaani-bg-burst": "rgba(88,101,242,.08)",
+        "--vaani-surface": "#ffffff",
+        "--vaani-border": "#e9eef5",
+        "--vaani-ring": "#E5E7EB",
+        "--vaani-muted": "#6b7280",
+        "--vaani-text": "#0f172a",
+        "--vaani-soft-1": "#f8fafc",
+        "--vaani-soft-2": "#eef2f7",
+        "--vaani-primary": "#5865f2",
+      });
+    } else {
+      setVars({
+        "--vaani-bg": "#0b1020",
+        "--vaani-bg-2": "#0f162a",
+        "--vaani-bg-burst": "rgba(88,101,242,.12)",
+        "--vaani-surface": "#121a2e",
+        "--vaani-border": "#26324d",
+        "--vaani-ring": "#334155",
+        "--vaani-muted": "#9aa4b2",
+        "--vaani-text": "#e5e7eb",
+        "--vaani-soft-1": "#17203a",
+        "--vaani-soft-2": "#0f162a",
+        "--vaani-primary": "#5865f2",
+      });
+    }
+  }, [dark]);
 
-  const categoriesStyle = {
-    position: isMobile ? "static" : "sticky",
-    top: isMobile ? "auto" : 80,
-    height: isMobile ? "auto" : 'calc(100vh - 80px)',
-    display: 'flex',
-    flexDirection: 'column'
-  };
-
-  const personaImg = selectedPersona ? (selectedPersona.image || selectedPersona.imageUrl) : null;
-
-  const toggleAvatar = () => setShowAvatar(!showAvatar);
-
-  const avatarContent = (
-    <>
-      <div
-        className={`d-grid place-items-center ${blink ? "blink" : ""} flex-grow-1`}
-        style={{ "--mouthScale": mouthScale }}
+  /* ======= UI ======= */
+  return (
+    <div
+      className="d-flex flex-column min-vh-100"
+      style={{ height: `${viewportHeight}px`, background: "var(--vaani-bg)" }}
+    >
+      {/* ======= HEADER ======= */}
+      <header
+        className="sticky-top z-3 border-bottom"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(88,101,242,.12), rgba(0,0,0,0)), var(--vaani-surface)",
+          backdropFilter: "blur(10px)",
+        }}
       >
-        <CommonAvatar width={280} height={380} />
-      </div>
-      <div className="mt-3 d-flex align-items-center justify-content-between flex-wrap gap-2 flex-shrink-0">
-        <div className="fw-bold h6 mb-0">
-          {personaDisplayName}
-        </div>
-        {selectedPersona?.gender ? (
-          <Chip>{normalizeGender(selectedPersona.gender)}</Chip>
-        ) : null}
-        <Button
-          kind={showAdvanced ? "outline" : "gray"}
-          onClick={() => setShowAdvanced((v) => !v)}
-          size="sm"
-          disabled={isThinking || isTyping}
-        >
-          {showAdvanced ? "Hide" : "Advanced"}
-        </Button>
-      </div>
-
-      {showAdvanced && (
-        <div className="mt-3 pt-3 border-top border-secondary-subtle flex-shrink-0">
-          <div className="row g-2">
-            <div className="col-6">
-              <label className="form-label small fw-medium">Speed: {rate.toFixed(2)}</label>
-              <input
-                type="range"
-                className="form-range"
-                min="0.6"
-                max="1.5"
-                step="0.05"
-                value={rate}
-                onChange={(e) => setRate(Number(e.target.value))}
-                disabled={isThinking || isTyping}
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label small fw-medium">Pitch: {pitch.toFixed(2)}</label>
-              <input
-                type="range"
-                className="form-range"
-                min="0.8"
-                max="1.3"
-                step="0.05"
-                value={pitch}
-                onChange={(e) => setPitch(Number(e.target.value))}
-                disabled={isThinking || isTyping}
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label small fw-medium">Volume: {volume.toFixed(2)}</label>
-              <input
-                type="range"
-                className="form-range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={volume}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                disabled={isThinking || isTyping}
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label small fw-medium">Articulation: {articulation.toFixed(2)}</label>
-              <input
-                type="range"
-                className="form-range"
-                min="0.8"
-                max="1.8"
-                step="0.05"
-                value={articulation}
-                onChange={(e) => setArticulation(Number(e.target.value))}
-                disabled={isThinking || isTyping}
-              />
-            </div>
-            <div className="col-12">
-              <label className="form-label small fw-medium">Voice:</label>
-              <select
-                className="form-select form-select-sm"
-                value={voiceURI}
-                onChange={(e) => setVoiceURI(e.target.value)}
-                disabled={isThinking || isTyping}
+        <div className="container-fluid px-3">
+          <div className="d-flex align-items-center justify-content-between py-2">
+            {/* Brand */}
+            <div className="d-flex align-items-center gap-2">
+              <div
+                className="d-inline-flex align-items-center justify-content-center"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: "var(--vaani-primary)",
+                  color: "white",
+                  boxShadow: "0 6px 18px rgba(88,101,242,.35)",
+                }}
               >
-                {(voices.length ? voices : [])
-                  .filter(
-                    (v, i, self) =>
-                      self.findIndex((x) => x.voiceURI === v.voiceURI) === i
-                  )
-                  .map((v) => (
-                    <option key={v.voiceURI} value={v.voiceURI}>
-                      {v.name} — {v.lang}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="col-12">
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  checked={blink}
-                  onChange={(e) => setBlink(e.target.checked)}
-                  disabled={isThinking || isTyping}
-                />
-                <label className="form-check-label small fw-medium">Blink</label>
+                <i className="bi bi-soundwave"></i>
+              </div>
+              <div className="ms-1">
+                <div className="fw-bold" style={{ letterSpacing: ".2px" }}>
+                  {APP_NAME}
+                </div>
+                <small className="text-muted">Conversational Personas Suite</small>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      <div className="d-flex gap-2 flex-wrap mt-3 justify-content-center flex-shrink-0">
-        <Button onClick={() => handleSpeak()} disabled={speaking || !text || isThinking || isTyping} size="sm">
-          <i className="bi bi-mic me-1"></i>Speak
-        </Button>
-        <Button kind="gray" onClick={() => stopAll()} disabled={!speaking || isThinking || isTyping} size="sm">
-          <i className="bi bi-stop me-1"></i>Stop
-        </Button>
-      </div>
-    </>
-  );
+            {/* Center info */}
+            <div className="d-none d-lg-flex align-items-center gap-2">
+              {selectedPersona ? (
+                <>
+                  <span className="text-muted small">Talking to</span>
+                  <span className="badge text-bg-light border">
+                    {personaDisplayName}
+                  </span>
+                </>
+              ) : (
+                <small className="text-muted">Select a category & persona</small>
+              )}
+            </div>
 
-  return (
-    <div className="d-flex flex-column min-vh-100 bg-light" style={{ height: `${viewportHeight}px` }}>
-      {/* HEADER */}
-      <header className="bg-white border-bottom sticky-top z-3 py-3 px-3 shadow-sm flex-shrink-0">
-        <div className="d-flex align-items-center justify-content-center flex-wrap gap-2">
-          <h1 className="h4 mb-0 fw-bold text-center flex-grow-1">
-            <i className="bi bi-chat-dots text-primary me-2"></i>Talking Personas
-          </h1>
-          <div className="d-flex align-items-center gap-2">
-            <Chip>Hindi TTS</Chip>
-            <Chip>Gender-aware</Chip>
-            <Chip>Session: {sessionId}</Chip>
+            {/* Actions */}
+            <div className="d-flex align-items-center gap-2">
+              <button
+                className="btn btn-outline-secondary btn-sm"
+                title={dark ? "Switch to Light" : "Switch to Dark"}
+                onClick={() => setDark((v) => !v)}
+              >
+                <i className={`bi ${dark ? "bi-sun" : "bi-moon"}`}></i>
+              </button>
+              <button
+                className="btn btn-outline-secondary btn-sm"
+                title="Reset Session"
+                onClick={() => {
+                  setMessages([]);
+                  setUserMsg("");
+                  setText("");
+                  setSessionId(uid());
+                }}
+              >
+                <i className="bi bi-arrow-repeat"></i>
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                title={speaking ? "Stop Speaking" : "Speak Last Message"}
+                onClick={() =>
+                  speaking ? window.speechSynthesis.cancel() : handleSpeak(text)
+                }
+                disabled={!text}
+              >
+                <i className="bi bi-megaphone"></i>
+              </button>
+            </div>
           </div>
         </div>
         {err ? (
-          <div className="alert alert-danger mt-2 mb-0 small d-flex align-items-center">
+          <div className="alert alert-danger rounded-0 mb-0 py-2 small d-flex align-items-center">
             <i className="bi bi-exclamation-triangle me-2"></i>
             {err}
           </div>
         ) : null}
       </header>
 
-      {/* MAIN CONTENT - Flex grow to fill remaining height */}
-      <div className="flex-grow-1 d-flex overflow-hidden" style={{ height: `calc(${viewportHeight}px - 80px)` }}>
-        <div className="container-fluid px-3 py-3 h-100 d-flex flex-column">
-          <div className="row g-3 h-100">
-            {!isMobile ? (
-              <>
-                {/* LEFT: Categories - Sidebar on desktop */}
-                <div className="col-lg-1 d-none d-lg-block">
-                  <Card style={categoriesStyle}>
-                    <div className="card-header bg-transparent border-0 pb-2 pt-3 flex-shrink-0">
-                      <h5 className="card-title mb-0 d-flex align-items-center">
-                        Categories
-                      </h5>
-                      {loading ? <small className="text-muted d-block mt-1">Loading…</small> : null}
-                    </div>
-                    <div ref={categoriesContainerRef} className="card-body p-0 flex-grow-1 d-flex flex-column overflow-hidden">
-                      <VScroll 
-                        containerRef={categoriesContainerRef}
-                        categories={categories}
-                        selectedCategory={selectedCategory}
-                        onSelectCategory={loadByCategory}
-                      >
-                        <div className="d-grid gap-3 p-3">
-                          {(categories || []).map((c, i) => {
-                            const label =
-                              typeof c === "string"
-                                ? c
-                                : c.displayName || c.name || c.code || `Category ${i + 1}`;
-                            const img = typeof c === "object" ? c.image || c.imageUrl : null;
-                            const cat = typeof c === "string" ? c : (c.code || c.name || c);
-                            const active = selectedCategory === cat;
-                            return (
-                              <CategoryCard
-                                key={i}
-                                cat={cat}
-                                label={label}
-                                img={img}
-                                active={active}
-                                onClick={loadByCategory}
-                              />
-                            );
-                          })}
-                        </div>
-                      </VScroll>
-                    </div>
-                  </Card>
+      {/* ======= MAIN ======= */}
+      <div
+        className="flex-grow-1 d-flex overflow-hidden position-relative"
+        style={{ height: `calc(${viewportHeight}px - 80px)` }}
+      >
+        <div className="container-fluid px-3 py-3 h-100 d-flex flex-column" style={{ minHeight: 0 }}>
+          <div className="row g-3 h-100" style={{ minHeight: 0 }}>
+            {/* LEFT: Categories */}
+            <div className="col-lg-2 d-none d-lg-block">
+              <Card style={categoriesStyle}>
+                <div className="card-header bg-transparent border-0 pb-2 pt-3 flex-shrink-0">
+                  <h6 className="card-title mb-0 d-flex align-items-center">
+                    <i className="bi bi-grid me-2 text-primary"></i> Categories
+                  </h6>
+                  {loading ? (
+                    <small className="text-muted d-block mt-1">Loading…</small>
+                  ) : null}
                 </div>
-
-                {/* RIGHT: Personas (Top Block) + Chat (Bottom Block) on desktop */}
-                <div className="col-lg-11 h-100">
-                  <div className="d-flex flex-column h-100">
-                    {/* TOP BLOCK: Personas - Separate flex-shrink-0 */}
-                    {selectedCategory && (
-                      <div className="flex-shrink-0 border-bottom border-secondary-subtle py-2">
-                        <Card>
-                          <div className="card-header d-flex justify-content-center align-items-baseline bg-transparent border-0 pb-2 pt-3">
-                            <h5 className="card-title mb-0 me-2 d-flex align-items-center">
-                              <i className="bi bi-people text-success me-2"></i>Personas
-                            </h5>
-                            <small className="text-muted">(Category: {selectedCategoryName})</small>
-                          </div>
-                          <div className="card-body p-2">
-                            <HCarousel
-                              personas={personaList}
-                              selectedPersona={selectedPersona}
-                              onSelectPersona={setSelectedPersona}
-                            />
-                          </div>
-                        </Card>
-                      </div>
-                    )}
-                    {!selectedCategory && (
-                      <div className="flex-shrink-0 text-center py-3 text-muted border-bottom border-secondary-subtle">
-                        <i className="bi bi-inbox fs-1 text-muted mb-2 d-block"></i>
-                        <p className="mb-0">Select a category from the left to load personas.</p>
-                      </div>
-                    )}
-
-                    {/* BOTTOM BLOCK: Chat Area - Full remaining height */}
-                    <div className="flex-grow-1 d-flex">
-                      <div className="row g-3 h-100 w-100">
-                        {/* Chat Messages */}
-                        <div className={`col-12 ${showAvatar ? 'col-lg-8' : 'col-lg-12'} h-100`}>
-                          <Card className="h-100 shadow-lg border-0 d-flex flex-column position-relative">
-                            <Messages
-                              messages={messages}
-                              personaImg={personaImg}
-                              personaDisplayName={personaDisplayName}
-                              isThinking={isThinking}
-                              isTyping={isTyping}
-                              typingMessage={typingMessage}
-                              handleTypingComplete={handleTypingComplete}
-                              handleSpeak={handleSpeak}
-                              chatRef={chatRef}
-                              composerHeight={composerHeight}
-                            />
-                          </Card>
-                        </div>
-
-                        {/* Avatar - Conditional, on right */}
-                        {showAvatar && selectedPersona && (
-                          <div className="col-12 col-lg-4 h-100">
-                            <Card className="h-100">
-                              <div className="card-body p-3 text-center d-flex flex-column h-100">
-                                {avatarContent}
-                              </div>
-                            </Card>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Mobile: Stack categories on top, then personas, then chat */}
-                <div className="col-12 flex-shrink-0">
-                  <Card style={categoriesStyle}>
-                    <div className="card-header bg-transparent border-0 pb-2 pt-3 flex-shrink-0">
-                      <h5 className="card-title mb-0 d-flex align-items-center">
-                        Categories
-                      </h5>
-                      {loading ? <small className="text-muted d-block mt-1">Loading…</small> : null}
-                    </div>
-                    <div ref={categoriesContainerRef} className="card-body p-0 flex-grow-1 d-flex flex-column overflow-hidden" style={{ minHeight: '150px', height: 'auto' }}>
-                      <VScroll 
-                        containerRef={categoriesContainerRef}
-                        categories={categories}
-                        selectedCategory={selectedCategory}
-                        onSelectCategory={loadByCategory}
-                      >
-                        <div className="d-grid gap-3 p-3">
-                          {(categories || []).map((c, i) => {
-                            const label =
-                              typeof c === "string"
-                                ? c
-                                : c.displayName || c.name || c.code || `Category ${i + 1}`;
-                            const img = typeof c === "object" ? c.image || c.imageUrl : null;
-                            const cat = typeof c === "string" ? c : (c.code || c.name || c);
-                            const active = selectedCategory === cat;
-                            return (
-                              <CategoryCard
-                                key={i}
-                                cat={cat}
-                                label={label}
-                                img={img}
-                                active={active}
-                                onClick={loadByCategory}
-                              />
-                            );
-                          })}
-                        </div>
-                      </VScroll>
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Mobile: Personas Top Block */}
-                <div className="col-12 flex-shrink-0">
-                  {selectedCategory && (
-                    <div className="border-bottom border-secondary-subtle py-2">
-                      <Card>
-                        <div className="card-header d-flex justify-content-center align-items-baseline bg-transparent border-0 pb-2 pt-3">
-                          <h5 className="card-title mb-0 me-2 d-flex align-items-center">
-                            <i className="bi bi-people text-success me-2"></i>Personas
-                          </h5>
-                          <small className="text-muted">(Category: {selectedCategoryName})</small>
-                        </div>
-                        <div className="card-body p-2">
-                          <HCarousel
-                            personas={personaList}
-                            selectedPersona={selectedPersona}
-                            onSelectPersona={setSelectedPersona}
-                          />
-                        </div>
-                      </Card>
-                    </div>
-                  )}
-                  {!selectedCategory && (
-                    <div className="text-center py-3 text-muted border-bottom border-secondary-subtle">
-                      <i className="bi bi-inbox fs-1 text-muted mb-2 d-block"></i>
-                      <p className="mb-0">Select a category above to load personas.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Mobile: Chat Bottom Block */}
-                <div className="col-12 flex-grow-1 d-flex">
-                  <div className="d-flex flex-column h-100 w-100 g-3">
-                    {/* Chat Messages - flex-grow-1 */}
-                    <div className="flex-grow-1 d-flex align-items-stretch">
-                      <Card className="h-100 shadow-lg border-0 d-flex flex-column position-relative">
-                        <Messages
-                          messages={messages}
-                          personaImg={personaImg}
-                          personaDisplayName={personaDisplayName}
-                          isThinking={isThinking}
-                          isTyping={isTyping}
-                          typingMessage={typingMessage}
-                          handleTypingComplete={handleTypingComplete}
-                          handleSpeak={handleSpeak}
-                          chatRef={chatRef}
-                          composerHeight={composerHeight}
+                <div
+                  ref={categoriesContainerRef}
+                  className="card-body p-0 flex-grow-1 d-flex flex-column overflow-auto"
+                >
+                  <div className="d-grid gap-3 p-3">
+                    {(categories || []).map((c, i) => {
+                      const label = catLabel(c, i);
+                      const img =
+                        typeof c === "object" ? c.image || c.imageUrl : null;
+                      const code = catCode(c);
+                      const active = selectedCategory === code;
+                      return (
+                        <CategoryCard
+                          key={i}
+                          cat={code}
+                          label={label}
+                          img={img}
+                          active={active}
+                          onClick={(code, label) => {
+                            setSelectedCategory(code);
+                            setSelectedCategoryName(label);
+                            loadByCategory(code, label);
+                          }}
                         />
-                      </Card>
-                    </div>
-
-                    {/* Avatar - Conditional, fixed height below chat */}
-                    {showAvatar && selectedPersona && (
-                      <div className="flex-shrink-0" style={{ height: '450px' }}>
-                        <Card className="h-100">
-                          <div className="card-body p-3 text-center d-flex flex-column h-100">
-                            {avatarContent}
-                          </div>
-                        </Card>
-                      </div>
-                    )}
+                      );
+                    })}
                   </div>
                 </div>
-              </>
-            )}
+              </Card>
+            </div>
+
+            {/* RIGHT: content */}
+            <div className="col-12 col-lg-10 h-100">
+              <div className="d-flex flex-column h-100" style={{ minHeight: 0, gap: 12 }}>
+                {/* Personas strip */}
+                {selectedCategory && (
+                  <Card className="flex-shrink-0">
+                    <div className="card-header d-flex justify-content-between align-items-center bg-transparent border-0 pb-2 pt-3">
+                      <div className="d-flex align-items-center">
+                        <h6 className="card-title mb-0 me-2 d-flex align-items-center">
+                          <i className="bi bi-people text-success me-2"></i>
+                          Personas
+                        </h6>
+                        <small className="text-muted">
+                          (Category: {selectedCategoryName})
+                        </small>
+                      </div>
+                      <div className="d-flex align-items-center gap-2">
+                        <span className="text-muted small d-none d-md-inline">TTS</span>
+                        <input
+                          type="range"
+                          min="0.6"
+                          max="1.4"
+                          step="0.1"
+                          value={rate}
+                          onChange={(e) => setRate(parseFloat(e.target.value))}
+                          title={`Rate: ${rate.toFixed(1)}`}
+                        />
+                        <input
+                          type="range"
+                          min="0.6"
+                          max="1.4"
+                          step="0.1"
+                          value={pitch}
+                          onChange={(e) => setPitch(parseFloat(e.target.value))}
+                          title={`Pitch: ${pitch.toFixed(1)}`}
+                        />
+                        <input
+                          type="range"
+                          min="0.2"
+                          max="1"
+                          step="0.1"
+                          value={volume}
+                          onChange={(e) => setVolume(parseFloat(e.target.value))}
+                          title={`Volume: ${volume.toFixed(1)}`}
+                        />
+                      </div>
+                    </div>
+                    <div className="card-body p-0" style={{ borderTop: "1px solid var(--vaani-border)" }}>
+                      <HCarousel
+                        personas={personasGrouped[selectedCategory] || []}
+                        selectedPersona={selectedPersona}
+                        onSelectPersona={setSelectedPersona}
+                      />
+                    </div>
+                  </Card>
+                )}
+
+                {/* Chat messages */}
+                <Card className="flex-grow-1 d-flex flex-column" style={{ minHeight: 0 }}>
+                  <Messages
+                    messages={messages}
+                    isThinking={isThinking}
+                    isTyping={isTyping}
+                    typingMessage={typingMessage}
+                    typingAvatarUrl={typingAvatarUrl}
+                    handleTypingComplete={handleTypingComplete}
+                    handleSpeak={handleSpeak}
+                    chatRef={chatRef}
+                  />
+                </Card>
+
+                {/* Input area */}
+                <Card className="flex-shrink-0">
+                  <div className="card-body">
+                    <div className="input-group">
+                      <textarea
+                        className="form-control shadow-sm"
+                        rows={2}
+                        placeholder={
+                          selectedPersona
+                            ? `Ask ${personaDisplayName}...`
+                            : selectedCategory
+                            ? "Select a persona..."
+                            : "Select a category..."
+                        }
+                        value={userMsg}
+                        onChange={(e) => setUserMsg(e.target.value)}
+                        onKeyDown={sendMessage}
+                        disabled={!selectedPersona || isThinking || isTyping}
+                        style={{
+                          lineHeight: 1.5,
+                          borderRadius: 0,
+                          border: "1px solid var(--vaani-border)",
+                          background: "var(--vaani-surface)",
+                          color: "var(--vaani-text)",
+                        }}
+                      />
+                      <Button
+                        onClick={() => sendMessage(null)}
+                        disabled={
+                          !selectedPersona || !userMsg.trim() || isThinking || isTyping
+                        }
+                        className="px-4"
+                        style={{
+                          borderRadius: 0,
+                          border: "1px solid var(--vaani-border)",
+                        }}
+                      >
+                        <i className="bi bi-send"></i>
+                      </Button>
+
+                      {/* Reader toggle button */}
+                      <Button
+                        kind="outline"
+                        onClick={() => setShowReader((v) => !v)}
+                        className="px-3"
+                        title={showReader ? "Hide Reader" : "Show Reader"}
+                        style={{
+                          borderRadius: 0,
+                          border: "1px solid var(--vaani-border)",
+                        }}
+                      >
+                        <i className="bi bi-person-video3"></i>
+                      </Button>
+                    </div>
+                    <div className="d-flex justify-content-between mt-2">
+                      <small className="text-muted">
+                        ↵ Enter to send • Shift+Enter for new line • ←/→ personas, ↑/↓ categories
+                      </small>
+                      <small className="text-muted">
+                        Session: <code>{sessionId.slice(0, 10)}…</code>
+                      </small>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </div>
+
+            {/* Mobile categories */}
+            <div className="col-12 d-lg-none">
+              <Card>
+                <div className="card-header bg-transparent border-0 pb-2 pt-3 flex-shrink-0">
+                  <h6 className="card-title mb-0 d-flex align-items-center">
+                    <i className="bi bi-grid me-2 text-primary"></i> Categories
+                  </h6>
+                  {loading ? (
+                    <small className="text-muted d-block mt-1">Loading…</small>
+                  ) : null}
+                </div>
+                <div className="card-body p-0">
+                  <div className="d-grid gap-3 p-3">
+                    {(categories || []).map((c, i) => {
+                      const label = catLabel(c, i);
+                      const img =
+                        typeof c === "object" ? c.image || c.imageUrl : null;
+                      const code = catCode(c);
+                      const active = selectedCategory === code;
+                      return (
+                        <CategoryCard
+                          key={i}
+                          cat={code}
+                          label={label}
+                          img={img}
+                          active={active}
+                          onClick={(code, label) => {
+                            setSelectedCategory(code);
+                            setSelectedCategoryName(label);
+                            loadByCategory(code, label);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
+            </div>
           </div>
         </div>
+
+        {/* RIGHT SLIDE-IN READER PANEL */}
+        <aside
+          className={`reader-panel ${showReader ? "show" : ""}`}
+          aria-hidden={!showReader}
+        >
+          <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom" style={{background:"var(--vaani-surface)"}}>
+            <div className="d-flex align-items-center gap-2">
+              <i className="bi bi-person-video3"></i>
+              <strong>Reader</strong>
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                title={speaking ? "Stop" : "Read last reply"}
+                onClick={() =>
+                  speaking ? window.speechSynthesis.cancel() : speakWithAvatar(text)
+                }
+                disabled={!text}
+              >
+                {speaking ? <i className="bi bi-stop-fill"></i> : <i className="bi bi-play-fill"></i>}
+              </button>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                title="Close"
+                onClick={() => setShowReader(false)}
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>
+
+          <div className="p-2 d-flex align-items-center justify-content-center h-100">
+            <div className="text-center">
+              <CommonAvatar
+                className={avatarBlink ? "blink" : ""}
+                width={260}
+                height={330}
+                mouth={avatarMouth}
+                headTilt={speaking ? 2 : 0}
+                eyeX={0}
+                eyeY={0}
+                browY={speaking ? -1 : 0}
+              />
+              <div className="mt-3 small text-muted px-3">
+                {text ? "Reading the latest assistant reply." : "No reply yet — ask something!"}
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
 
-      {/* Composer - Fixed at bottom */}
-      <Composer
-        userMsg={userMsg}
-        onUserMsgChange={setUserMsg}
-        onSendMessage={sendMessage}
-        selectedPersona={selectedPersona}
-        personaDisplayName={personaDisplayName}
-        isThinking={isThinking}
-        isTyping={isTyping}
-        showAvatar={showAvatar}
-        onToggleAvatar={toggleAvatar}
-        composerRef={composerRef}
-      />
-
       <style>{`
-        .typing-cursor {
-          animation: blink 1s infinite;
+        .typing-cursor { animation: blink 1s infinite; }
+        @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+
+        .overflow-auto::-webkit-scrollbar { width: 8px; height: 8px; }
+        .overflow-auto::-webkit-scrollbar-track { background: transparent; }
+        .overflow-auto::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 8px; }
+        .overflow-auto::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.28); }
+
+        .vaani-messages .shadow-sm { transition: box-shadow .15s ease; }
+        .vaani-messages .shadow-sm:hover { box-shadow: 0 8px 20px rgba(0,0,0,.08); }
+
+        /* ================= CLOUD BUBBLES ================= */
+        .cloud-bubble{ position:relative; max-width:78%; filter: drop-shadow(0 8px 18px rgba(0,0,0,.08)); isolation:isolate; }
+        .cloud-body{ position:relative; z-index:2; padding:14px 40px 14px 16px; line-height:1.6; white-space:pre-wrap; font-variant-ligatures: contextual; }
+        .cloud-action{ position:absolute; top:6px; right:6px; z-index:3; font-size:14px; color:var(--vaani-muted); opacity:.85; cursor:pointer; }
+        .cloud-action:hover{ opacity:1; }
+
+        .cloud-assistant{ --bg: var(--vaani-surface); --stroke: var(--vaani-border); --shine: rgba(255,255,255,.65); color: var(--vaani-text); }
+        .cloud-user{
+          --bg: linear-gradient(180deg,
+            color-mix(in oklab, var(--vaani-primary) 96%, #fff 0%) 0%,
+            color-mix(in oklab, var(--vaani-primary) 85%, #000 0%) 100%);
+          --stroke: color-mix(in oklab, var(--vaani-primary) 45%, #000 0%);
+          --shine: rgba(255,255,255,.25);
+          color: #fff;
         }
-        @keyframes blink {
-          0%, 50% { opacity: 1; }
-          51%, 100% { opacity: 0; }
+
+        .cloud-bubble::before{
+          content:""; position:absolute; inset:0; z-index:0; background: var(--bg);
+          border:1px solid var(--stroke); border-radius:22px;
         }
-        /* Custom scrollbar for categories */
-        .overflow-auto::-webkit-scrollbar {
-          width: 6px;
+        /* removed the glossy round 'sphere' shine */
+        .cloud-bubble::after{ content:none !important; }
+
+        .cloud-bubble .cloud-body::before{
+          content:""; position:absolute; left:0; right:0; top:0; height:18px; border-radius:22px 22px 0 0;
+          background: linear-gradient(180deg, var(--shine), transparent);
+          opacity:.25; pointer-events:none;
         }
-        .overflow-auto::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 10px;
+     
+     
+        /* Slide-in Reader Panel */
+        .reader-panel{
+          position: fixed;
+          top: 64px;
+          right: 0;
+          width: min(360px, 92vw);
+          height: calc(100vh - 64px);
+          background: var(--vaani-surface);
+          border-left: 1px solid var(--vaani-border);
+          box-shadow: -10px 0 24px rgba(0,0,0,.08);
+          transform: translateX(100%);
+          transition: transform .25s ease;
+          z-index: 1040;
+          display:flex; flex-direction:column;
         }
-        .overflow-auto::-webkit-scrollbar-thumb {
-          background: #c1c1c1;
-          border-radius: 10px;
-        }
-        .overflow-auto::-webkit-scrollbar-thumb:hover {
-          background: #a8a8a8;
-        }
-        /* Composer alignment on desktop: after categories sidebar */
-        @media (min-width: 992px) {
-          .composer {
-            left: calc( (100% / 12) + 1.5rem ) !important;
-            width: calc( 100% - (100% / 12) - 3rem ) !important;
-          }
-        }
-        /* Custom scrollbar for message bubbles */
-        .message-bubble::-webkit-scrollbar {
-          width: 4px;
-        }
-        .message-bubble::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .message-bubble::-webkit-scrollbar-thumb {
-          background: rgba(0,0,0,0.2);
-          border-radius: 2px;
-        }
-        .message-bubble::-webkit-scrollbar-thumb:hover {
-          background: rgba(0,0,0,0.4);
-        }
+        .reader-panel.show{ transform: translateX(0%); }
       `}</style>
     </div>
   );
